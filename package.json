@@ -1,0 +1,22 @@
+{
+  "name": "pwa-wrapper-generator",
+  "version": "1.0.0",
+  "description": "A simple 1-file PWA wrapper generator using Express.js",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "npx nodemon server.js"
+  },
+  "keywords": [
+    "pwa",
+    "wrapper",
+    "express",
+    "iframe",
+    "offline-ready"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
