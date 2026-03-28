@@ -53,11 +53,16 @@ app.get('/', (req, res) => {
 
 // --- 2. DYNAMIC MANIFEST ---
 app.get('/manifest.json', (req, res) => {
-    const { name, icon } = req.query;
+    // PERBAIKAN: Ambil juga parameter 'url'
+    const { name, url, icon } = req.query;
+    
+    // PERBAIKAN: start_url harus mengarah ke halaman /view beserta parameternya, bukan ke manifest
+    const startUrl = `/view?name=${encodeURIComponent(name || 'PWA')}&url=${encodeURIComponent(url || 'https://bing.com')}&icon=${encodeURIComponent(icon || '')}`;
+
     res.json({
         "name": name || "PWA Wrapper",
         "short_name": name || "PWA",
-        "start_url": req.originalUrl,
+        "start_url": startUrl, 
         "display": "standalone",
         "background_color": "#121212",
         "theme_color": "#121212",
@@ -83,7 +88,8 @@ app.get('/view', (req, res) => {
     <head>
         <title>${name}</title>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-        <link rel="manifest" href="/manifest.json?name=${encodeURIComponent(name)}&icon=${encodeURIComponent(icon)}">
+        <!-- PERBAIKAN: Tambahkan parameter 'url' ke dalam link manifest -->
+        <link rel="manifest" href="/manifest.json?name=${encodeURIComponent(name)}&url=${encodeURIComponent(url)}&icon=${encodeURIComponent(icon)}">
         <meta name="theme-color" content="#121212">
         <style>
             body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #121212; font-family: sans-serif; }
@@ -143,14 +149,12 @@ app.get('/view', (req, res) => {
 
             function checkStatus() {
                 if (navigator.onLine) {
-                    // Jika kembali online, tampilkan iframe dan refresh jika perlu
                     if (frame.style.display === 'none') {
                         frame.src = "${url}"; 
                     }
                     frame.style.display = 'block';
                     offline.style.display = 'none';
                 } else {
-                    // Jika offline, sembunyikan iframe, tampilkan pesan
                     frame.style.display = 'none';
                     offline.style.display = 'flex';
                 }
@@ -159,7 +163,6 @@ app.get('/view', (req, res) => {
             window.addEventListener('online', checkStatus);
             window.addEventListener('offline', checkStatus);
             
-            // Cek saat pertama kali load
             if (!navigator.onLine) checkStatus();
         </script>
     </body>
