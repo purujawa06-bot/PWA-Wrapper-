@@ -66,17 +66,18 @@ app.get('/manifest.json', (req, res) => {
         "short_name": name || "PWA",
         "start_url": startUrl, 
         "display": "standalone",
+        "orientation": "any", // PERBAIKAN: Mengizinkan rotasi layar (landscape/portrait)
         "background_color": "#121212",
         "theme_color": "#121212",
         "icons": [{ "src": icon, "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }]
     });
 });
 
-// --- 3. SERVICE WORKER (Diubah untuk caching HTML) ---
+// --- 3. SERVICE WORKER (Caching HTML Wrapper) ---
 app.get('/sw.js', (req, res) => {
     res.setHeader('Content-Type', 'application/javascript');
     res.send(`
-        const CACHE_NAME = 'wrapper-cache-v2';
+        const CACHE_NAME = 'wrapper-cache-v3';
 
         self.addEventListener('install', e => {
             self.skipWaiting();
@@ -87,17 +88,15 @@ app.get('/sw.js', (req, res) => {
         });
 
         self.addEventListener('fetch', e => {
-            // Hanya cache request navigasi (Halaman HTML Wrapper) agar bisa offline
             if (e.request.mode === 'navigate') {
                 e.respondWith(
                     fetch(e.request)
                         .then(res => {
-                            // Simpan halaman sukses ke cache
                             const resClone = res.clone();
                             caches.open(CACHE_NAME).then(cache => cache.put(e.request, resClone));
                             return res;
                         })
-                        .catch(() => caches.match(e.request)) // Fallback ambil dari cache kalau offline
+                        .catch(() => caches.match(e.request))
                 );
             }
         });
@@ -118,6 +117,7 @@ app.get('/view', (req, res) => {
         <style>
             body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #121212; font-family: sans-serif; }
             
+            /* Iframe Style */
             iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; z-index: 1; }
 
             /* --- UI Install Pop-Up --- */
@@ -187,8 +187,15 @@ app.get('/view', (req, res) => {
             <div class="loading-text">Mencoba menyambungkan ulang...</div>
         </div>
 
-        <!-- App Frame -->
-        <iframe id="app-frame" src="${url}"></iframe>
+        <!-- PERBAIKAN IFRAME: Tambahkan allow="fullscreen" dan allowfullscreen -->
+        <iframe 
+            id="app-frame" 
+            src="${url}" 
+            allow="fullscreen; autoplay; encrypted-media; picture-in-picture; camera; microphone; geolocation" 
+            allowfullscreen="true" 
+            webkitallowfullscreen="true" 
+            mozallowfullscreen="true">
+        </iframe>
 
         <script>
             // --- 1. Service Worker Registration ---
@@ -199,15 +206,13 @@ app.get('/view', (req, res) => {
             // --- 2. Install Pop Up Logic ---
             let deferredPrompt;
             const installModal = document.getElementById('install-modal');
-            
-            // Cek apakah PWA berjalan di mode standalone (sudah diinstall)
             const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 
             if (!isStandalone) {
                 window.addEventListener('beforeinstallprompt', (e) => {
                     e.preventDefault();
                     deferredPrompt = e;
-                    installModal.style.display = 'flex'; // Paksa tampilkan modal
+                    installModal.style.display = 'flex';
                 });
             }
 
@@ -218,7 +223,6 @@ app.get('/view', (req, res) => {
                         if (choiceResult.outcome === 'accepted') {
                             installModal.style.display = 'none';
                         }
-                        // Jika batal, modal tetap ada karena tidak ada tombol close
                     });
                 }
             }
@@ -234,14 +238,12 @@ app.get('/view', (req, res) => {
                 startPinging();
             }
 
-            // Fungsi untuk nge-ping ke server (Menghindari block CORS dari target URL)
             async function pingServer() {
                 try {
-                    // Tambahkan timestamp agar tidak kena cache browser
                     const res = await fetch('/ping?_t=' + new Date().getTime(), { method: 'HEAD', cache: 'no-store' });
                     if (res.ok) {
                         clearInterval(pingInterval);
-                        window.location.reload(true); // Full page reload!
+                        window.location.reload(true);
                     }
                 } catch (error) {
                     console.log("Ping gagal, masih offline...");
@@ -250,18 +252,38 @@ app.get('/view', (req, res) => {
 
             function startPinging() {
                 if (pingInterval) clearInterval(pingInterval);
-                pingInterval = setInterval(pingServer, 3000); // Ping setiap 3 detik
+                pingInterval = setInterval(pingServer, 3000);
             }
 
             window.addEventListener('offline', showOffline);
-            
-            // Saat browser mendeteksi online, langsung coba ping 1 kali, sisanya diurus interval
             window.addEventListener('online', pingServer); 
             
-            // Cek kondisi awal saat halaman baru dibuka
-            if (!navigator.onLine) {
-                showOffline();
-            }
+            if (!navigator.onLine) showOffline();
+
+            // --- 4. AUTO LANDSCAPE SAAT FULLSCREEN ---
+            // Mendengarkan perubahan mode layar penuh di browser
+            document.addEventListener('fullscreenchange', () => {
+                if (document.fullscreenElement) {
+                    // Jika masuk mode Fullscreen, paksa layar jadi Landscape
+                    if (screen.orientation && screen.orientation.lock) {
+                        screen.orientation.lock('landscape').catch(err => console.log('Orientasi terkunci oleh device'));
+                    }
+                } else {
+                    // Jika keluar dari mode Fullscreen, buka kembali kunci orientasi (kembali ke portrait/bebas)
+                    if (screen.orientation && screen.orientation.unlock) {
+                        screen.orientation.unlock();
+                    }
+                }
+            });
+            
+            // Kompatibilitas untuk browser Webkit (Safari/iOS)
+            document.addEventListener('webkitfullscreenchange', () => {
+                if (document.webkitFullscreenElement) {
+                    if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(e=>e);
+                } else {
+                    if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
+                }
+            });
         </script>
     </body>
     </html>
