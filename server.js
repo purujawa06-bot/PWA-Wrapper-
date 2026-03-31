@@ -66,7 +66,7 @@ app.get('/manifest.json', (req, res) => {
         "short_name": name || "PWA",
         "start_url": startUrl, 
         "display": "standalone",
-        "orientation": "any", // PERBAIKAN: Mengizinkan rotasi layar (landscape/portrait)
+        "orientation": "portrait", // Mencegah rotasi otomatis saat HP dimiringkan
         "background_color": "#121212",
         "theme_color": "#121212",
         "icons": [{ "src": icon, "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }]
@@ -115,7 +115,7 @@ app.get('/view', (req, res) => {
         <link rel="manifest" href="/manifest.json?name=${encodeURIComponent(name)}&url=${encodeURIComponent(url)}&icon=${encodeURIComponent(icon)}">
         <meta name="theme-color" content="#121212">
         <style>
-            body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #121212; font-family: sans-serif; }
+            body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #121212; font-family: sans-serif; overscroll-behavior-y: none; }
             
             /* Iframe Style */
             iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; z-index: 1; }
