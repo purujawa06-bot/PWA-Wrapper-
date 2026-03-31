@@ -66,7 +66,8 @@ app.get('/manifest.json', (req, res) => {
         "short_name": name || "PWA",
         "start_url": startUrl, 
         "display": "standalone",
-        "orientation": "portrait", // Mencegah rotasi otomatis saat HP dimiringkan
+        // Mencegah rotasi otomatis saat HP dimiringkan (bekerja otomatis saat PWA diinstal)
+        "orientation": "portrait", 
         "background_color": "#121212",
         "theme_color": "#121212",
         "icons": [{ "src": icon, "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }]
@@ -77,7 +78,7 @@ app.get('/manifest.json', (req, res) => {
 app.get('/sw.js', (req, res) => {
     res.setHeader('Content-Type', 'application/javascript');
     res.send(`
-        const CACHE_NAME = 'wrapper-cache-v3';
+        const CACHE_NAME = 'wrapper-cache-v4';
 
         self.addEventListener('install', e => {
             self.skipWaiting();
@@ -172,7 +173,7 @@ app.get('/view', (req, res) => {
             <div class="install-card">
                 <img src="${icon}" alt="Icon" onerror="this.src='https://cdn-icons-png.flaticon.com/512/888/888857.png'">
                 <h1 style="margin-top:0;">Install App</h1>
-                <p>Silakan install aplikasi ini ke layar utama Anda untuk melanjutkan.</p>
+                <p>Silakan install aplikasi ini ke layar utama Anda untuk mendapatkan pengalaman terbaik.</p>
                 <button class="install-btn" onclick="installApp()">INSTALL SEKARANG</button>
             </div>
         </div>
@@ -187,7 +188,7 @@ app.get('/view', (req, res) => {
             <div class="loading-text">Mencoba menyambungkan ulang...</div>
         </div>
 
-        <!-- PERBAIKAN IFRAME: Tambahkan allow="fullscreen" dan allowfullscreen -->
+        <!-- IFRAME -->
         <iframe 
             id="app-frame" 
             src="${url}" 
@@ -261,23 +262,42 @@ app.get('/view', (req, res) => {
             if (!navigator.onLine) showOffline();
 
             // --- 4. LOCK ORIENTASI (Fix Portrait, Landscape hanya saat Fullscreen) ---
-            function handleOrientation() {
-                if (screen.orientation && screen.orientation.lock) {
-                    const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+            async function handleOrientation() {
+                if (!screen.orientation || !screen.orientation.lock) return;
+
+                // Cek apakah ada elemen yang sedang fullscreen (bisa iframe atau dokumen)
+                const isFullscreen = document.fullscreenElement || 
+                                     document.webkitFullscreenElement || 
+                                     document.mozFullScreenElement || 
+                                     document.msFullscreenElement;
+
+                try {
                     if (isFullscreen) {
-                        // Jika masuk mode Fullscreen, paksa layar jadi Landscape
-                        screen.orientation.lock('landscape').catch(e => e);
+                        // Paksa Landscape saat mode layar penuh (nonton video dsb)
+                        await screen.orientation.lock('landscape');
                     } else {
-                        // Jika keluar mode Fullscreen, kunci kembali ke Portrait agar tidak miring saat HP dimiringkan
-                        screen.orientation.lock('portrait').catch(e => e);
+                        // Kunci kembali ke Portrait saat keluar dari layar penuh
+                        await screen.orientation.lock('portrait');
                     }
+                } catch (error) {
+                    // Note: Browser sering memblokir lock layar jika PWA belum diinstal
+                    // atau jika bukan dipicu oleh interaksi user/fullscreen.
+                    console.warn("Screen lock error (usually expected if not installed as PWA):", error);
                 }
             }
 
-            // Jalankan saat awal muat, dan saat terjadi perubahan mode layar penuh
-            window.addEventListener('load', handleOrientation);
+            // Deteksi ketika Iframe atau Document masuk/keluar Fullscreen
             document.addEventListener('fullscreenchange', handleOrientation);
-            document.addEventListener('webkitfullscreenchange', handleOrientation);
+            document.addEventListener('webkitfullscreenchange', handleOrientation); // Safari
+            document.addEventListener('mozfullscreenchange', handleOrientation); // Firefox
+            document.addEventListener('MSFullscreenChange', handleOrientation); // IE/Edge
+
+            // Kunci ke portrait saat aplikasi dibuka (Akan berhasil jika dibuka dari layar utama/PWA)
+            window.addEventListener('load', () => {
+                if (isStandalone) {
+                    handleOrientation();
+                }
+            });
         </script>
     </body>
     </html>
