@@ -260,30 +260,24 @@ app.get('/view', (req, res) => {
             
             if (!navigator.onLine) showOffline();
 
-            // --- 4. AUTO LANDSCAPE SAAT FULLSCREEN ---
-            // Mendengarkan perubahan mode layar penuh di browser
-            document.addEventListener('fullscreenchange', () => {
-                if (document.fullscreenElement) {
-                    // Jika masuk mode Fullscreen, paksa layar jadi Landscape
-                    if (screen.orientation && screen.orientation.lock) {
-                        screen.orientation.lock('landscape').catch(err => console.log('Orientasi terkunci oleh device'));
-                    }
-                } else {
-                    // Jika keluar dari mode Fullscreen, buka kembali kunci orientasi (kembali ke portrait/bebas)
-                    if (screen.orientation && screen.orientation.unlock) {
-                        screen.orientation.unlock();
+            // --- 4. LOCK ORIENTASI (Fix Portrait, Landscape hanya saat Fullscreen) ---
+            function handleOrientation() {
+                if (screen.orientation && screen.orientation.lock) {
+                    const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+                    if (isFullscreen) {
+                        // Jika masuk mode Fullscreen, paksa layar jadi Landscape
+                        screen.orientation.lock('landscape').catch(e => e);
+                    } else {
+                        // Jika keluar mode Fullscreen, kunci kembali ke Portrait agar tidak miring saat HP dimiringkan
+                        screen.orientation.lock('portrait').catch(e => e);
                     }
                 }
-            });
-            
-            // Kompatibilitas untuk browser Webkit (Safari/iOS)
-            document.addEventListener('webkitfullscreenchange', () => {
-                if (document.webkitFullscreenElement) {
-                    if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(e=>e);
-                } else {
-                    if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
-                }
-            });
+            }
+
+            // Jalankan saat awal muat, dan saat terjadi perubahan mode layar penuh
+            window.addEventListener('load', handleOrientation);
+            document.addEventListener('fullscreenchange', handleOrientation);
+            document.addEventListener('webkitfullscreenchange', handleOrientation);
         </script>
     </body>
     </html>
